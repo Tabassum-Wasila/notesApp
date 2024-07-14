@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Note;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class NoteController extends Controller
 {
@@ -12,7 +13,14 @@ class NoteController extends Controller
      */
     public function index()
     {
-        $notes = Note::orderBy("created_at","desc")->paginate(15);
+        if ( !Auth::check()) {
+            return redirect()->route('register');
+        }
+        $notes = Note::query()
+                ->where('user_id', request()->user()->id)
+                ->orderBy("created_at","desc")
+                ->paginate(15);
+
         return view('note.index', compact('notes'));
     }
 
@@ -29,7 +37,14 @@ class NoteController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $data = $request->validate([
+            'note' => ['required', 'string'] 
+        ]);
+
+        $data['user_id'] = $request->user()->id;
+        $note = Note::create($data);
+
+        return to_route('note.show', $note)->with('message','Note created successfully');
     }
 
     /**
@@ -37,6 +52,12 @@ class NoteController extends Controller
      */
     public function show(Note $note)
     {
+        if ( !Auth::check()) {
+            return redirect()->route('register');
+        }
+        if ($note->user_id != auth()->id()) {
+            abort(403);
+        }
         return view('note.show' , compact('note'));
     }
 
@@ -45,6 +66,13 @@ class NoteController extends Controller
      */
     public function edit(Note $note)
     {
+        if ( !Auth::check()) {
+            return redirect()->route('register');
+        }
+
+        if ($note->user_id != auth()->id()) {
+            abort(403);
+        }
         return view('note.edit' , compact('note'));
     }
 
@@ -53,7 +81,19 @@ class NoteController extends Controller
      */
     public function update(Request $request, Note $note)
     {
-        //
+        if ($note->user_id != auth()->id()) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'note' => ['required', 'string'] 
+        ]);
+
+        $data['user_id'] = $request->user()->id;
+        $note->update($data);
+
+        return to_route('note.show', $note)->with('message','Note updated successfully');
+
     }
 
     /**
@@ -61,6 +101,10 @@ class NoteController extends Controller
      */
     public function destroy(Note $note)
     {
-        //
+        if ($note->user_id != auth()->id()) {
+            abort(403);
+        }
+        $note->delete();
+        return to_route('note.index')->with('message','Note deleted successfully');
     }
 }
